@@ -27,7 +27,8 @@ public class NetworkSocketWrapper {
     private final ObjectOutputStream oos;
     private final ObjectInputStream ois;
 
-    private final ArrayList<ObjectHandler> handlers;
+    private final ArrayList<ObjectHandler> objectHandlers;
+    private final ArrayList<DisconnectHandler> disconnectHandlers;
 
     private boolean disconnected;
 
@@ -35,7 +36,8 @@ public class NetworkSocketWrapper {
         this.socket = socket;
         this.oos = new ObjectOutputStream(socket.getOutputStream());
         this.ois = new ObjectInputStream(socket.getInputStream());
-        this.handlers = new ArrayList<>();
+        this.objectHandlers = new ArrayList<>();
+        this.disconnectHandlers = new ArrayList<>();
     }
 
     public void startIOThreads() {
@@ -63,12 +65,20 @@ public class NetworkSocketWrapper {
         return this.oThread.isAlive();
     }
 
-    public void addObjectHandler(ObjectHandler oh) {
-        this.handlers.add(oh);
+    public void addHandler(ObjectHandler oh) {
+        this.objectHandlers.add(oh);
     }
 
-    public void removeObjectHandler(ObjectHandler oh) {
-        this.handlers.remove(oh);
+    public void removeHandler(ObjectHandler oh) {
+        this.objectHandlers.remove(oh);
+    }
+    
+    public void addHandler(DisconnectHandler dh) {
+        this.disconnectHandlers.add(dh);
+    }
+    
+    public void removeHandler(DisconnectHandler dh) {
+        this.disconnectHandlers.remove(dh);
     }
 
     public void queueSend(Collection c) {
@@ -80,6 +90,7 @@ public class NetworkSocketWrapper {
     }
 
     public void disconnect() throws IOException {
+        handleDisconnect();
         this.oos.close();
         this.ois.close();
         this.socket.close();
@@ -97,9 +108,11 @@ public class NetworkSocketWrapper {
      * @param obj The incoming object.
      */
     private void handleIncomingObject(Object obj) {
-        this.handlers.forEach((ObjectHandler oh) -> {
-            oh.handleObject(obj);
-        });
+        this.objectHandlers.forEach(oh -> oh.handleObject(obj));
+    }
+
+    private void handleDisconnect() {
+        this.disconnectHandlers.forEach(dh -> dh.method());
     }
 
     private class IThread extends Thread {
@@ -135,9 +148,11 @@ public class NetworkSocketWrapper {
                 try {
                     oos.writeObject(queue.take());
                     oos.flush();
+                    oos.reset();
                     while (!queue.isEmpty()) {
                         oos.writeObject(queue.take());
                         oos.flush();
+                        oos.reset();
                     }
                 } catch (IOException | InterruptedException ex) {
                     try {
