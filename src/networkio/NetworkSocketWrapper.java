@@ -8,6 +8,7 @@ package networkio;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.net.InetAddress;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -17,20 +18,20 @@ import java.util.concurrent.LinkedBlockingQueue;
  *
  * @author nickz
  */
-public abstract class NetworkSocketWrapper {
+public class NetworkSocketWrapper {
 
     private IThread iThread;
     private OThread oThread;
 
-    protected final Socket socket;
-    protected final ObjectOutputStream oos;
-    protected final ObjectInputStream ois;
-    
-    protected final ArrayList<ObjectHandler> handlers;
+    private final Socket socket;
+    private final ObjectOutputStream oos;
+    private final ObjectInputStream ois;
+
+    private final ArrayList<ObjectHandler> handlers;
 
     private boolean disconnected;
 
-    protected NetworkSocketWrapper(Socket socket) throws IOException {
+    public NetworkSocketWrapper(Socket socket) throws IOException {
         this.socket = socket;
         this.oos = new ObjectOutputStream(socket.getOutputStream());
         this.ois = new ObjectInputStream(socket.getInputStream());
@@ -44,8 +45,8 @@ public abstract class NetworkSocketWrapper {
         this.oThread.start();
     }
 
-    public Socket getSocket() {
-        return socket;
+    public InetAddress getInetAddress() {
+        return socket.getInetAddress();
     }
 
     public boolean inputThreadActive() {
@@ -54,18 +55,18 @@ public abstract class NetworkSocketWrapper {
         }
         return this.iThread.isAlive();
     }
-    
+
     public boolean outputThreadActive() {
         if (this.oThread == null) {
             return false;
         }
         return this.oThread.isAlive();
     }
-    
+
     public void addObjectHandler(ObjectHandler oh) {
         this.handlers.add(oh);
     }
-    
+
     public void removeObjectHandler(ObjectHandler oh) {
         this.handlers.remove(oh);
     }
@@ -83,7 +84,6 @@ public abstract class NetworkSocketWrapper {
         this.ois.close();
         this.socket.close();
         this.disconnected = true;
-        System.out.println("Disconnected");
     }
 
     public boolean isDisconnected() {
@@ -97,8 +97,8 @@ public abstract class NetworkSocketWrapper {
      * @param obj The incoming object.
      */
     private void handleIncomingObject(Object obj) {
-        this.handlers.forEach((ObjectHandler oh) ->{
-        oh.handleObject(obj);
+        this.handlers.forEach((ObjectHandler oh) -> {
+            oh.handleObject(obj);
         });
     }
 
@@ -111,7 +111,6 @@ public abstract class NetworkSocketWrapper {
                     Object o = ois.readObject();
                     handleIncomingObject(o);
                 } catch (IOException | ClassNotFoundException ex) {
-                    System.out.println(ex);
                     try {
                         disconnect();
                     } catch (IOException ex1) {
@@ -141,7 +140,6 @@ public abstract class NetworkSocketWrapper {
                         oos.flush();
                     }
                 } catch (IOException | InterruptedException ex) {
-                    System.out.println(ex);
                     try {
                         disconnect();
                     } catch (IOException ex1) {
@@ -151,7 +149,7 @@ public abstract class NetworkSocketWrapper {
             }
         }
     }
-    
+
     @Override
     public String toString() {
         return this.socket.toString();
