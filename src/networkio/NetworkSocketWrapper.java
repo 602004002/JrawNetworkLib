@@ -112,7 +112,9 @@ public class NetworkSocketWrapper {
     }
 
     private void handleDisconnect() {
-        this.disconnectHandlers.forEach(dh -> dh.method());
+        for (int i = this.disconnectHandlers.size() - 1; i >= 0; i--) {
+            this.disconnectHandlers.remove(i).method();
+        }
     }
 
     private class IThread extends Thread {
