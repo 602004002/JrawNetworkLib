@@ -20,8 +20,8 @@ import java.util.concurrent.LinkedBlockingQueue;
  */
 public class NetworkSocketWrapper {
 
-    private IThread iThread;
-    private OThread oThread;
+    private InThread iThread;
+    private OutThread oThread;
 
     private final Socket socket;
     private final ObjectOutputStream oos;
@@ -29,8 +29,6 @@ public class NetworkSocketWrapper {
 
     private final ArrayList<ObjectHandler> objectHandlers;
     private final ArrayList<DisconnectHandler> disconnectHandlers;
-
-    private boolean disconnected;
 
     public NetworkSocketWrapper(Socket socket) throws IOException {
         this.socket = socket;
@@ -41,8 +39,8 @@ public class NetworkSocketWrapper {
     }
 
     public void startIOThreads() {
-        this.iThread = new IThread();
-        this.oThread = new OThread();
+        this.iThread = new InThread();
+        this.oThread = new OutThread();
         this.iThread.start();
         this.oThread.start();
     }
@@ -72,11 +70,11 @@ public class NetworkSocketWrapper {
     public void removeHandler(ObjectHandler oh) {
         this.objectHandlers.remove(oh);
     }
-    
-    public void addHandler(DisconnectHandler dh) {
+
+    public void addDisconnectHandler(DisconnectHandler dh) {
         this.disconnectHandlers.add(dh);
     }
-    
+
     public void removeHandler(DisconnectHandler dh) {
         this.disconnectHandlers.remove(dh);
     }
@@ -89,16 +87,14 @@ public class NetworkSocketWrapper {
         this.oThread.queue.add(o);
     }
 
-    public void disconnect() throws IOException {
+    public void disconnect() {
         handleDisconnect();
-        this.oos.close();
-        this.ois.close();
-        this.socket.close();
-        this.disconnected = true;
-    }
-
-    public boolean isDisconnected() {
-        return this.disconnected;
+        try {
+            this.oos.close();
+            this.ois.close();
+            this.socket.close();
+        } catch (IOException ex) {
+        }
     }
 
     /**
@@ -117,7 +113,7 @@ public class NetworkSocketWrapper {
         }
     }
 
-    private class IThread extends Thread {
+    private class InThread extends Thread {
 
         @Override
         public synchronized void run() {
@@ -126,21 +122,18 @@ public class NetworkSocketWrapper {
                     Object o = ois.readObject();
                     handleIncomingObject(o);
                 } catch (IOException | ClassNotFoundException ex) {
-                    try {
-                        disconnect();
-                    } catch (IOException ex1) {
-                    }
+                    disconnect();
                     return;
                 }
             }
         }
     }
 
-    private class OThread extends Thread {
+    private class OutThread extends Thread {
 
         private LinkedBlockingQueue queue;
 
-        private OThread() {
+        private OutThread() {
             this.queue = new LinkedBlockingQueue();
         }
 
@@ -157,10 +150,7 @@ public class NetworkSocketWrapper {
                         oos.reset();
                     }
                 } catch (IOException | InterruptedException ex) {
-                    try {
-                        disconnect();
-                    } catch (IOException ex1) {
-                    }
+                    disconnect();
                     return;
                 }
             }
