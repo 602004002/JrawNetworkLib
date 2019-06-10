@@ -38,7 +38,7 @@ public class NetworkSocketWrapper {
         this.disconnectHandlers = new ArrayList<>();
     }
 
-    public void startIOThreads() {
+    public synchronized void startIOThreads() {
         this.iThread = new InThread();
         this.oThread = new OutThread();
         this.iThread.start();
@@ -63,27 +63,27 @@ public class NetworkSocketWrapper {
         return this.oThread.isAlive();
     }
 
-    public void addHandler(ObjectHandler oh) {
+    public synchronized void addHandler(ObjectHandler oh) {
         this.objectHandlers.add(oh);
     }
 
-    public void removeHandler(ObjectHandler oh) {
+    public synchronized void removeHandler(ObjectHandler oh) {
         this.objectHandlers.remove(oh);
     }
 
-    public void addDisconnectHandler(DisconnectHandler dh) {
+    public synchronized void addDisconnectHandler(DisconnectHandler dh) {
         this.disconnectHandlers.add(dh);
     }
 
-    public void removeHandler(DisconnectHandler dh) {
+    public synchronized void removeHandler(DisconnectHandler dh) {
         this.disconnectHandlers.remove(dh);
     }
 
-    public void queueSend(Collection c) {
+    public synchronized void queueSend(Collection c) {
         this.oThread.queue.addAll(c);
     }
 
-    public void queueSend(Object o) {
+    public synchronized void queueSend(Object o) {
         this.oThread.queue.add(o);
     }
 
@@ -103,17 +103,23 @@ public class NetworkSocketWrapper {
      *
      * @param obj The incoming object.
      */
-    private void handleIncomingObject(Object obj) {
-        this.objectHandlers.forEach(oh -> oh.handleObject(obj));
+    private synchronized void handleIncomingObject(Object obj) {
+        for (int i = this.objectHandlers.size() - 1; i >= 0; i--) {
+            this.objectHandlers.get(i).handleObject(obj);
+        }
     }
 
-    private void handleDisconnect() {
+    private synchronized void handleDisconnect() {
         for (int i = this.disconnectHandlers.size() - 1; i >= 0; i--) {
             this.disconnectHandlers.remove(i).method();
         }
     }
 
     private class InThread extends Thread {
+
+        InThread() {
+            super("InThead @ " + NetworkSocketWrapper.this.toString());
+        }
 
         @Override
         public synchronized void run() {
@@ -134,6 +140,7 @@ public class NetworkSocketWrapper {
         private LinkedBlockingQueue queue;
 
         private OutThread() {
+            super("OutThead @ " + NetworkSocketWrapper.this.toString());
             this.queue = new LinkedBlockingQueue();
         }
 
